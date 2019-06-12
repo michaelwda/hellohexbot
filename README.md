@@ -1,0 +1,2 @@
+# hellohexbot
+hexbot go
