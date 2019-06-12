@@ -25,7 +25,7 @@ func main() {
 func GetHex(body []byte) string {
 
 	var data map[string]interface{}
-	//var assignmnt not allowed inside an if. must use := shorthand
+	//var assignment not allowed inside an if. must use := shorthand
 	//inlining the nil check using chaining
 	//interestingly, if you don't use K&R bracket style here it gives a syntax error?
 	if err := json.Unmarshal(body, &data); err != nil {
