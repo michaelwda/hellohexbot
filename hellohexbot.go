@@ -18,8 +18,8 @@ import (
 
 const (
 	url         = "https://api.noopschallenge.com/hexbot"
-	height      = 500
-	width       = 500
+	height      = 400
+	width       = 400
 	pixelWidth  = 50
 	pixelHeight = 50
 )
@@ -42,7 +42,7 @@ func run() {
 	//set up our window
 	cfg := pixelgl.WindowConfig{
 		Title:  "HexBot!",
-		Bounds: pixel.R(0, 0, 300, 300),
+		Bounds: pixel.R(0, 0, width, height),
 		VSync:  true,
 	}
 	win, err := pixelgl.NewWindow(cfg)
@@ -96,8 +96,8 @@ func createSpriteFromHex(hex string, w int, h int) *pixel.Sprite {
 		log.Fatal(err)
 	}
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for i := 0; i < 5; i++ {
-		for j := 0; j < 5; j++ {
+	for i := 0; i < w; i++ {
+		for j := 0; j < h; j++ {
 			img.Set(i, j, c)
 		}
 	}
