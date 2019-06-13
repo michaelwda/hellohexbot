@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/faiface/pixel"
@@ -17,19 +18,21 @@ import (
 )
 
 const (
-	url         = "https://api.noopschallenge.com/hexbot"
-	height      = 400
-	width       = 400
-	pixelWidth  = 50
-	pixelHeight = 50
+	url               = "https://api.noopschallenge.com/hexbot"
+	height            = 400
+	width             = 400
+	minPixelWidth     = 5
+	minPixelHeight    = 5
+	maxPixelWidth     = 5
+	maxPixelHeight    = 5
+	apiColorCount     = 200
+	snapPixelToGrid   = true
+	gridInterval      = 5
+	requestsPerSecond = 20
 )
 
 type colorUpdate struct {
-	x   int
-	y   int
-	w   int
-	h   int
-	hex string
+	hex []string
 }
 
 func main() {
@@ -56,9 +59,10 @@ func run() {
 	//make a rate-limiter
 	limiter := make(chan time.Time, 1)
 
-	//on-tick- add a value to the channel - only 10 requests a second
+	//on-tick- add a value to the channel - only X requests a second
 	go func() {
-		for t := range time.Tick(100 * time.Millisecond) {
+		milliseconds := 1000 / requestsPerSecond
+		for t := range time.Tick(time.Duration(milliseconds) * time.Millisecond) {
 			limiter <- t
 		}
 	}()
@@ -68,7 +72,7 @@ func run() {
 
 	//spawn 50 goroutines, passing in my rate limiter
 	for i := 0; i < 50; i++ {
-		go callApi(updates, limiter)
+		go callAPI(updates, limiter)
 	}
 
 	for !win.Closed() {
@@ -78,9 +82,28 @@ func run() {
 		select {
 		case update := <-updates:
 			{
-				fmt.Println("received update")
-				sprite := createSpriteFromHex(update.hex, update.w, update.h)
-				sprite.Draw(win, pixel.IM.Moved(pixel.V(float64(update.x), float64(update.y))))
+				for i := 0; i < len(update.hex); i++ {
+					x := rand.Intn(width + gridInterval)
+					y := rand.Intn(height + gridInterval)
+
+					if snapPixelToGrid {
+						//use int division to drop remainders
+						x = (x / gridInterval) * gridInterval
+						y = (y / gridInterval) * gridInterval
+					}
+
+					w := minPixelWidth
+					h := minPixelHeight
+					if maxPixelWidth > minPixelWidth {
+						w = rand.Intn(maxPixelWidth-minPixelWidth) + minPixelWidth
+					}
+					if maxPixelHeight > minPixelHeight {
+						h = rand.Intn(maxPixelHeight-minPixelHeight) + minPixelHeight
+					}
+
+					sprite := createSpriteFromHex(update.hex[i], w, h)
+					sprite.Draw(win, pixel.IM.Moved(pixel.V(float64(x), float64(y))))
+				}
 			}
 		default:
 			{
@@ -107,33 +130,36 @@ func createSpriteFromHex(hex string, w int, h int) *pixel.Sprite {
 	return sprite
 }
 
-func callApi(updates chan colorUpdate, limiter chan time.Time) {
+func callAPI(updates chan colorUpdate, limiter chan time.Time) {
 	//repeatedly call the api and get colors, with respect to the limiter
 	for true {
 		<-limiter
-		response, err := http.Get(url)
+		response, err := http.Get(url + "?count=" + strconv.Itoa(apiColorCount))
 		if err == nil {
 			body, _ := ioutil.ReadAll(response.Body)
+			hex := getHex(body)
 			update := colorUpdate{
-				x:   rand.Intn(width),
-				y:   rand.Intn(height),
-				w:   rand.Intn(pixelWidth-1) + 1,
-				h:   rand.Intn(pixelHeight-1) + 1,
-				hex: getHex(body),
+				hex: hex,
 			}
 			updates <- update
 		}
 	}
 }
 
-func getHex(body []byte) string {
+func getHex(body []byte) []string {
+
+	var hex []string
+
 	var data map[string]interface{}
 	//var assignment not allowed inside an if. must use := shorthand
 	//inlining the nil check using chaining
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "#000000"
+		hex = append(hex, "#000000")
 	}
 	colors := data["colors"].([]interface{})
-	firstColor := colors[0].(map[string]interface{})
-	return firstColor["value"].(string)
+	for i := 0; i < len(colors); i++ {
+		color := colors[i].(map[string]interface{})
+		hex = append(hex, color["value"].(string))
+	}
+	return hex
 }
